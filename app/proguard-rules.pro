@@ -1,1 +1,2 @@
-# No custom rules needed for this simple app
+# Keep the custom view class
+-keep class com.example.snakepanel.Panel { *; }
