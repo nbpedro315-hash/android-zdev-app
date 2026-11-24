@@ -1,36 +1,95 @@
-name: Build APK
+name: Build APK (android-zdev-app)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - name: Checkout do código
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Configurar Java 17
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: 17
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+      - name: Configurar Android SDK e licenças
+        run: |
+          ANDROID_SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$ANDROID_SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK" >> "$GITHUB_ENV"
+          if [ -d "$ANDROID_SDK/cmdline-tools/latest/bin" ]; then
+            echo "$ANDROID_SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+            SDKMGR="$ANDROID_SDK/cmdline-tools/latest/bin/sdkmanager"
+          elif [ -d "$ANDROID_SDK/tools/bin" ]; then
+            echo "$ANDROID_SDK/tools/bin" >> "$GITHUB_PATH"
+            SDKMGR="$ANDROID_SDK/tools/bin/sdkmanager"
+          else
+            SDKMGR="$(command -v sdkmanager || true)"
+          fi
+          if [ -d "$ANDROID_SDK/platform-tools" ]; then
+            echo "$ANDROID_SDK/platform-tools" >> "$GITHUB_PATH"
+          fi
+          mkdir -p "$ANDROID_SDK/licenses" || sudo mkdir -p "$ANDROID_SDK/licenses" || true
+          cat <<'EOF' | tee "$ANDROID_SDK/licenses/android-sdk-license" > /dev/null 2>&1 || true
+24333f8a63b6825ea9c5514f83c2829b004d1fee
+d56f5187479451eabf01fb78af6dfcb131a6481e
+8933bad161af4178b1185d1a37fbf41ea5269c55
+EOF
+          cat <<'EOF' | tee "$ANDROID_SDK/licenses/android-sdk-preview-license" > /dev/null 2>&1 || true
+84831b9409646a918e30573bab4c9c91346d8abd
+EOF
+          cat <<'EOF' | tee "$ANDROID_SDK/licenses/android-sdk-arm-dbt-license" > /dev/null 2>&1 || true
+859f317696f67ef3d7f30a50a5560e7834b43903
+EOF
+          cat <<'EOF' | tee "$ANDROID_SDK/licenses/google-gdk-license" > /dev/null 2>&1 || true
+33b6a2b64607f11b759f320ef9dff4ae5c47d97a
+EOF
+          if [ -n "$SDKMGR" ]; then
+            (yes || true) | "$SDKMGR" --licenses > /dev/null 2>&1 || true
+          fi
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
+      - name: Compilar APK Debug
+        run: |
+          PROJECT_DIR="."
+          if [ ! -f "./gradlew" ] && [ ! -f "./settings.gradle" ] && [ ! -f "./settings.gradle.kts" ] && [ ! -f "./build.gradle" ] && [ ! -f "./build.gradle.kts" ]; then
+            FOUND=$(find . -maxdepth 2 \( -name "gradlew" -o -name "settings.gradle" -o -name "settings.gradle.kts" \) -print -quit)
+            if [ -n "$FOUND" ]; then
+              PROJECT_DIR=$(dirname "$FOUND")
+            fi
+          fi
+          cd "$PROJECT_DIR"
+          SDK_PATH="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ -n "$SDK_PATH" ]; then
+            echo "sdk.dir=$SDK_PATH" > local.properties
+          fi
+          if [ -f "./gradlew" ] && [ -f "./gradle/wrapper/gradle-wrapper.jar" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          elif command -v gradle >/dev/null 2>&1 && gradle --version 2>/dev/null | grep -q "Gradle 8.7"; then
+            gradle assembleDebug --no-daemon --stacktrace
+          else
+            curl -fsSL "https://services.gradle.org/distributions/gradle-8.7-bin.zip" -o /tmp/gradle.zip
+            unzip -q /tmp/gradle.zip -d /tmp
+            /tmp/gradle-8.7/bin/gradle assembleDebug --no-daemon --stacktrace
+          fi
 
-      - name: Upload APK artifact
+      - name: Enviar APK compilado
         uses: actions/upload-artifact@v4
         with:
-          name: snake-painel-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: zdev-apk-debug
+          path: |
+            **/build/outputs/apk/debug/*.apk
+            **/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
