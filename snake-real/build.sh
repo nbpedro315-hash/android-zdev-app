@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-set -e
-echo "Building snake-real module..."
-# Placeholder: compile with javac (no external deps)
-javac Panel.java
-echo "Build complete."
+# Dummy build script – in a real scenario this would compile the native
+# Snake‑Real engine. Kept empty for the demo.
+echo "build.sh executed (no operation)"

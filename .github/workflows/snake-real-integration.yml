@@ -1,12 +1,21 @@
-name: Snake Real Integration
+name: Snake‑Real Integration
+
 on:
   workflow_dispatch:
+
 jobs:
-  integrate:
+  run-snake-real:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run integration script
+
+      - name: Install Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run pack script
+        working-directory: snake-real
         run: |
-          cd snake-real
-          ./build.sh
+          chmod +x pack.py
+          ./pack.py

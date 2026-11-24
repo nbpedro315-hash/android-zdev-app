@@ -1,20 +1,27 @@
-name: Montar
+name: Assemble Debug APK
+
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
+
 jobs:
-  assemble:
+  assemble-debug:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-      - name: Build APK
+
+      - name: Build Debug APK
         run: ./gradlew assembleDebug
+
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: snake-painel-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: snake-painel-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
